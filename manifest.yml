@@ -1,0 +1,35 @@
+manifest_version: 2
+type: DCM_PROJECT
+default_target: 'DEV'
+
+targets:
+  DEV:
+    account_identifier: SFSENORTHAMERICA-KMILLS_AWS3
+    project_name: 'DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_DEV'
+    project_owner: ACCOUNTADMIN
+    templating_config: 'DEV'
+  QA:
+    account_identifier: SFSENORTHAMERICA-KMILLS_AWS3
+    project_name: 'DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_QA'
+    project_owner: ACCOUNTADMIN
+    templating_config: 'QA'
+  PROD:
+    account_identifier: SFSENORTHAMERICA-KMILLS_AWS3
+    project_name: 'DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_PROD'
+    project_owner: ACCOUNTADMIN
+    templating_config: 'PROD'
+
+templating:
+  defaults:
+    env_name: 'DEV'
+    wh_size: 'XSMALL'
+  configurations:
+    DEV:
+      env_name: 'DEV'
+      wh_size: 'XSMALL'
+    QA:
+      env_name: 'QA'
+      wh_size: 'SMALL'
+    PROD:
+      env_name: 'PROD'
+      wh_size: 'MEDIUM'

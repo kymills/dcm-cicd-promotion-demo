@@ -1,0 +1,100 @@
+name: DCM Promotion Pipeline
+
+on:
+  pull_request:
+    branches: [develop, staging, main]
+  push:
+    branches: [develop, staging, main]
+
+jobs:
+  resolve-target:
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.map.outputs.target }}
+    steps:
+      - id: map
+        run: |
+          case "${{ github.base_ref || github.ref_name }}" in
+            develop) echo "target=DEV" >> "$GITHUB_OUTPUT" ;;
+            staging) echo "target=QA" >> "$GITHUB_OUTPUT" ;;
+            main)    echo "target=PROD" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  plan:
+    if: github.event_name == 'pull_request'
+    needs: resolve-target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install snowflake-cli
+      - name: Configure Snowflake connection
+        env:
+          SF_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.snowflake
+          echo "$SF_PRIVATE_KEY" > /tmp/key.p8
+          cat > ~/.snowflake/connections.toml <<EOF
+          [dcm_ci]
+          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
+          user = "${{ secrets.SNOWFLAKE_USER }}"
+          role = "${{ secrets.SNOWFLAKE_ROLE }}"
+          authenticator = "SNOWFLAKE_JWT"
+          private_key_file = "/tmp/key.p8"
+          EOF
+      - name: snow dcm plan
+        run: |
+          snow dcm plan DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
+            -c dcm_ci --target ${{ needs.resolve-target.outputs.target }} --save-output
+      - name: Post plan summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'DCM plan failed or produced no output. Check the workflow logs.';
+            try {
+              const plan = JSON.parse(fs.readFileSync('out/plan_result.json', 'utf8'));
+              const changes = plan.changeset || [];
+              const summary = changes.map(c => `- ${c.type} ${c.object_id.domain} ${c.object_id.fqn}`).join('\n');
+              body = `### DCM Plan (target: ${{ needs.resolve-target.outputs.target }})\n\nStatus: **${plan.status}**\n\n${summary || '_No changes._'}`;
+            } catch (e) {}
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: resolve-target
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-target.outputs.target == 'PROD' && 'PROD' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install snowflake-cli
+      - name: Configure Snowflake connection
+        env:
+          SF_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.snowflake
+          echo "$SF_PRIVATE_KEY" > /tmp/key.p8
+          cat > ~/.snowflake/connections.toml <<EOF
+          [dcm_ci]
+          account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
+          user = "${{ secrets.SNOWFLAKE_USER }}"
+          role = "${{ secrets.SNOWFLAKE_ROLE }}"
+          authenticator = "SNOWFLAKE_JWT"
+          private_key_file = "/tmp/key.p8"
+          EOF
+      - name: snow dcm deploy
+        run: |
+          snow dcm deploy DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
+            -c dcm_ci --target ${{ needs.resolve-target.outputs.target }} \
+            --alias "gha-${{ github.run_number }}-${{ github.sha }}"
