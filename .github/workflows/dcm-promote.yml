@@ -23,30 +23,35 @@ jobs:
   plan:
     if: github.event_name == 'pull_request'
     needs: resolve-target
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dcm-demo]
+    permissions:
+      pull-requests: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install snowflake-cli
+      - name: Install snowflake-cli
+        run: /opt/miniconda3/bin/pip3 install --quiet --upgrade snowflake-cli
       - name: Configure Snowflake connection
         env:
           SF_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: |
-          mkdir -p ~/.snowflake
-          echo "$SF_PRIVATE_KEY" > /tmp/key.p8
-          cat > ~/.snowflake/connections.toml <<EOF
+          echo "$SF_PRIVATE_KEY" > "$RUNNER_TEMP/dcm_ci_key.p8"
+          chmod 600 "$RUNNER_TEMP/dcm_ci_key.p8"
+          cat > "$RUNNER_TEMP/dcm_ci_connections.toml" <<EOF
           [dcm_ci]
           account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
           user = "${{ secrets.SNOWFLAKE_USER }}"
           role = "${{ secrets.SNOWFLAKE_ROLE }}"
           authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/key.p8"
+          private_key_file = "$RUNNER_TEMP/dcm_ci_key.p8"
           EOF
+          chmod 600 "$RUNNER_TEMP/dcm_ci_connections.toml"
       - name: snow dcm plan
+        env:
+          SNOWFLAKE_HOME: ${{ runner.temp }}
         run: |
-          snow dcm plan DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
+          mv "$RUNNER_TEMP/dcm_ci_connections.toml" "$RUNNER_TEMP/connections.toml"
+          /opt/miniconda3/bin/snow dcm plan DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
             -c dcm_ci --target ${{ needs.resolve-target.outputs.target }} --save-output
       - name: Post plan summary
         if: always()
@@ -71,30 +76,32 @@ jobs:
   deploy:
     if: github.event_name == 'push'
     needs: resolve-target
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dcm-demo]
     environment: ${{ needs.resolve-target.outputs.target == 'PROD' && 'PROD' || '' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install snowflake-cli
+      - name: Install snowflake-cli
+        run: /opt/miniconda3/bin/pip3 install --quiet --upgrade snowflake-cli
       - name: Configure Snowflake connection
         env:
           SF_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: |
-          mkdir -p ~/.snowflake
-          echo "$SF_PRIVATE_KEY" > /tmp/key.p8
-          cat > ~/.snowflake/connections.toml <<EOF
+          echo "$SF_PRIVATE_KEY" > "$RUNNER_TEMP/dcm_ci_key.p8"
+          chmod 600 "$RUNNER_TEMP/dcm_ci_key.p8"
+          cat > "$RUNNER_TEMP/dcm_ci_connections.toml" <<EOF
           [dcm_ci]
           account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
           user = "${{ secrets.SNOWFLAKE_USER }}"
           role = "${{ secrets.SNOWFLAKE_ROLE }}"
           authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "/tmp/key.p8"
+          private_key_file = "$RUNNER_TEMP/dcm_ci_key.p8"
           EOF
+          chmod 600 "$RUNNER_TEMP/dcm_ci_connections.toml"
       - name: snow dcm deploy
+        env:
+          SNOWFLAKE_HOME: ${{ runner.temp }}
         run: |
-          snow dcm deploy DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
+          mv "$RUNNER_TEMP/dcm_ci_connections.toml" "$RUNNER_TEMP/connections.toml"
+          /opt/miniconda3/bin/snow dcm deploy DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
             -c dcm_ci --target ${{ needs.resolve-target.outputs.target }} \
             --alias "gha-${{ github.run_number }}-${{ github.sha }}"
