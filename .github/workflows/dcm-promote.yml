@@ -24,6 +24,9 @@ jobs:
     if: github.event_name == 'pull_request'
     needs: resolve-target
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,6 +39,7 @@ jobs:
         run: |
           mkdir -p ~/.snowflake
           echo "$SF_PRIVATE_KEY" > /tmp/key.p8
+          chmod 600 /tmp/key.p8
           cat > ~/.snowflake/connections.toml <<EOF
           [dcm_ci]
           account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
@@ -44,6 +48,7 @@ jobs:
           authenticator = "SNOWFLAKE_JWT"
           private_key_file = "/tmp/key.p8"
           EOF
+          chmod 600 ~/.snowflake/connections.toml
       - name: snow dcm plan
         run: |
           snow dcm plan DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
@@ -85,6 +90,7 @@ jobs:
         run: |
           mkdir -p ~/.snowflake
           echo "$SF_PRIVATE_KEY" > /tmp/key.p8
+          chmod 600 /tmp/key.p8
           cat > ~/.snowflake/connections.toml <<EOF
           [dcm_ci]
           account = "${{ secrets.SNOWFLAKE_ACCOUNT }}"
@@ -93,6 +99,7 @@ jobs:
           authenticator = "SNOWFLAKE_JWT"
           private_key_file = "/tmp/key.p8"
           EOF
+          chmod 600 ~/.snowflake/connections.toml
       - name: snow dcm deploy
         run: |
           snow dcm deploy DCM_PROMO_DEMO.PROJECTS.ORDERS_PIPELINE_${{ needs.resolve-target.outputs.target }} \
