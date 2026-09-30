@@ -17,3 +17,6 @@ COMMENT = 'Transformation layer (mirrors compiled dbt marts) - {{env_name}}';
 
 DEFINE SCHEMA DCM_PROMO_DEMO.{{env_name}}_SERVE
 COMMENT = 'Consumption layer - {{env_name}}';
+
+DEFINE SCHEMA DCM_PROMO_DEMO.{{env_name}}_SECURITY
+COMMENT = 'Schema-level security objects (network rules, authentication policies) - {{env_name}}';

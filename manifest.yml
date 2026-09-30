@@ -23,13 +23,18 @@ templating:
   defaults:
     env_name: 'DEV'
     wh_size: 'XSMALL'
+    # Placeholder ranges (RFC 5737 documentation blocks) - replace with real CIDRs
+    allowed_cidrs: ['198.51.100.0/24']
   configurations:
     DEV:
       env_name: 'DEV'
       wh_size: 'XSMALL'
+      allowed_cidrs: ['198.51.100.0/24', '203.0.113.0/24']
     QA:
       env_name: 'QA'
       wh_size: 'SMALL'
+      allowed_cidrs: ['198.51.100.0/24']
     PROD:
       env_name: 'PROD'
       wh_size: 'MEDIUM'
+      allowed_cidrs: ['203.0.113.0/24']
